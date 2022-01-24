@@ -1,5 +1,3 @@
-import _ from "lodash";
-
 import type { GameStartType, PostFrameUpdateType } from "../types";
 
 export interface StatsType {
@@ -84,8 +82,9 @@ export interface ActionCountsType {
     down: number;
   };
   groundTechCount: {
-    backward: number;
-    forward: number;
+    // tech away/in are in reference to the opponents position and not the stage
+    away: number;
+    in: number;
     neutral: number;
     fail: number;
   };
@@ -200,12 +199,12 @@ export function getSinglesPlayerPermutationsFromSettings(settings: GameStartType
 
   return [
     {
-      playerIndex: settings.players[0].playerIndex,
-      opponentIndex: settings.players[1].playerIndex,
+      playerIndex: settings.players[0]!.playerIndex,
+      opponentIndex: settings.players[1]!.playerIndex,
     },
     {
-      playerIndex: settings.players[1].playerIndex,
-      opponentIndex: settings.players[0].playerIndex,
+      playerIndex: settings.players[1]!.playerIndex,
+      opponentIndex: settings.players[0]!.playerIndex,
     },
   ];
 }

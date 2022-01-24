@@ -1,4 +1,4 @@
-import _ from "lodash";
+import { get, isEqual, keyBy, last, set, size } from "lodash";
 
 import type { FrameEntryType, GameStartType } from "../types";
 import type { ActionCountsType, PlayerIndexedType } from "./common";
@@ -45,8 +45,9 @@ export class ActionsComputer implements StatComputer<ActionCountsType[]> {
           down: 0,
         },
         groundTechCount: {
-          backward: 0,
-          forward: 0,
+          // tech away/in are in reference to the opponents position and not the stage
+          away: 0,
+          in: 0,
           neutral: 0,
           fail: 0,
         },
@@ -138,12 +139,14 @@ function didStartLedgegrab(currentAnimation: State, previousAnimation: State): b
 
 function handleActionCompute(state: PlayerActionState, indices: PlayerIndexedType, frame: FrameEntryType): void {
   const playerFrame = frame.players[indices.playerIndex]!.post;
+  const opponentFrame = frame.players[indices.opponentIndex]!.post;
   const incrementCount = (field: string, condition: boolean): void => {
     if (!condition) {
       return;
     }
 
-    _.update(state.playerCounts, field, (n) => n + 1);
+    const current: number = get(state.playerCounts, field, 0);
+    set(state.playerCounts, field, current + 1);
   };
 
   // Manage animation state
@@ -152,11 +155,11 @@ function handleActionCompute(state: PlayerActionState, indices: PlayerIndexedTyp
 
   // Grab last 3 frames
   const last3Frames = state.animations.slice(-3);
-  const prevAnimation = last3Frames[last3Frames.length - 2];
+  const prevAnimation = last3Frames[last3Frames.length - 2] as number;
   const newAnimation = currentAnimation !== prevAnimation;
 
   // Increment counts based on conditions
-  const didDashDance = _.isEqual(last3Frames, dashDanceAnimations);
+  const didDashDance = isEqual(last3Frames, dashDanceAnimations);
   incrementCount("dashDanceCount", didDashDance);
 
   const didRoll = didStartRoll(currentAnimation, prevAnimation);
@@ -184,9 +187,21 @@ function handleActionCompute(state: PlayerActionState, indices: PlayerIndexedTyp
   if (newAnimation) {
     const didMissTech = didMissGroundTech(currentAnimation);
     incrementCount("groundTechCount.fail", didMissTech);
-    incrementCount("groundTechCount.forward", currentAnimation === State.FORWARD_TECH);
+    let opponentDir = 1;
+    let facingOpponent = false;
+
+    if (playerFrame.positionX! > opponentFrame.positionX!) {
+      opponentDir = -1;
+    }
+    if (playerFrame.facingDirection == opponentDir) {
+      facingOpponent = true;
+    }
+
+    incrementCount("groundTechCount.in", currentAnimation === State.FORWARD_TECH && facingOpponent);
+    incrementCount("groundTechCount.in", currentAnimation === State.BACKWARD_TECH && !facingOpponent);
     incrementCount("groundTechCount.neutral", currentAnimation === State.NEUTRAL_TECH);
-    incrementCount("groundTechCount.backward", currentAnimation === State.BACKWARD_TECH);
+    incrementCount("groundTechCount.away", currentAnimation === State.BACKWARD_TECH && facingOpponent);
+    incrementCount("groundTechCount.away", currentAnimation === State.FORWARD_TECH && !facingOpponent);
 
     incrementCount("wallTechCount.success", currentAnimation === State.WALL_TECH);
     incrementCount("wallTechCount.fail", currentAnimation === State.MISSED_WALL_TECH);
@@ -202,8 +217,8 @@ function handleActionCompute(state: PlayerActionState, indices: PlayerIndexedTyp
 }
 
 function handleActionWavedash(counts: ActionCountsType, animations: State[]): void {
-  const currentAnimation = _.last(animations);
-  const prevAnimation = animations[animations.length - 2];
+  const currentAnimation = last(animations);
+  const prevAnimation = animations[animations.length - 2] as number;
 
   const isSpecialLanding = currentAnimation === State.LANDING_FALL_SPECIAL;
   const isAcceptablePrevious = isWavedashInitiationAnimation(prevAnimation);
@@ -217,9 +232,9 @@ function handleActionWavedash(counts: ActionCountsType, animations: State[]): vo
   // We grab the last 8 frames here because that should be enough time to execute a
   // wavedash. This number could be tweaked if we find false negatives
   const recentFrames = animations.slice(-8);
-  const recentAnimations = _.keyBy(recentFrames, (animation) => animation);
+  const recentAnimations = keyBy(recentFrames, (animation) => animation);
 
-  if (_.size(recentAnimations) === 2 && recentAnimations[State.AIR_DODGE]) {
+  if (size(recentAnimations) === 2 && recentAnimations[State.AIR_DODGE]) {
     // If the only other animation is air dodge, this might be really late to the point
     // where it was actually an air dodge. Air dodge animation is really long
     return;
