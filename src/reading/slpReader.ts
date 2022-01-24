@@ -1,11 +1,10 @@
-import { decode } from "@shelacek/ubjson";
-import fs from "fs";
-import iconv from "iconv-lite";
-import { mapValues } from "lodash";
+import { convert } from "encoding-japanese";
+import _ from "lodash";
 
-import type { EventCallbackFunc, EventPayloadTypes, MetadataType, PlayerType, SelfInducedSpeedsType } from "../types";
+import type { EventCallbackFunc, EventPayloadTypes, PlayerType, SelfInducedSpeedsType } from "../types";
 import { Command } from "../types";
 import { toHalfwidth } from "./fullwidth";
+import { readFullData } from "./nodeReading";
 
 export enum SlpInputSource {
   BUFFER = "buffer",
@@ -15,17 +14,15 @@ export enum SlpInputSource {
 export interface SlpReadInput {
   source: SlpInputSource;
   filePath?: string;
-  buffer?: Buffer;
+  buffer?: Uint8Array;
 }
 
 export type SlpRefType = SlpFileSourceRef | SlpBufferSourceRef;
 
 export interface SlpFileType {
-  ref: SlpRefType;
+  full_data: Uint8Array;
   rawDataPosition: number;
   rawDataLength: number;
-  metadataPosition: number;
-  metadataLength: number;
   messageSizes: {
     [command: number]: number;
   };
@@ -38,127 +35,53 @@ export interface SlpFileSourceRef {
 
 export interface SlpBufferSourceRef {
   source: SlpInputSource;
-  buffer: Buffer;
-}
-
-function getRef(input: SlpReadInput): SlpRefType {
-  switch (input.source) {
-    case SlpInputSource.FILE:
-      if (!input.filePath) {
-        throw new Error("File source requires a file path");
-      }
-      const fd = fs.openSync(input.filePath, "r");
-      return {
-        source: input.source,
-        fileDescriptor: fd,
-      } as SlpFileSourceRef;
-    case SlpInputSource.BUFFER:
-      return {
-        source: input.source,
-        buffer: input.buffer,
-      } as SlpBufferSourceRef;
-    default:
-      throw new Error("Source type not supported");
-  }
-}
-
-function readRef(ref: SlpRefType, buffer: Uint8Array, offset: number, length: number, position: number): number {
-  switch (ref.source) {
-    case SlpInputSource.FILE:
-      return fs.readSync((ref as SlpFileSourceRef).fileDescriptor, buffer, offset, length, position);
-    case SlpInputSource.BUFFER:
-      return (ref as SlpBufferSourceRef).buffer.copy(buffer, offset, position, position + length);
-    default:
-      throw new Error("Source type not supported");
-  }
-}
-
-function getLenRef(ref: SlpRefType): number {
-  switch (ref.source) {
-    case SlpInputSource.FILE:
-      const fileStats = fs.fstatSync((ref as SlpFileSourceRef).fileDescriptor);
-      return fileStats.size;
-    case SlpInputSource.BUFFER:
-      return (ref as SlpBufferSourceRef).buffer.length;
-    default:
-      throw new Error("Source type not supported");
-  }
+  buffer: Uint8Array;
 }
 
 /**
  * Opens a file at path
  */
 export function openSlpFile(input: SlpReadInput): SlpFileType {
-  const ref = getRef(input);
+  const full_data = readFullData(input);
 
-  const rawDataPosition = getRawDataPosition(ref);
-  const rawDataLength = getRawDataLength(ref, rawDataPosition);
-  const metadataPosition = rawDataPosition + rawDataLength + 10; // remove metadata string
-  const metadataLength = getMetadataLength(ref, metadataPosition);
-  const messageSizes = getMessageSizes(ref, rawDataPosition);
-
+  const raw_data_position = getRawDataPosition(full_data);
+  const raw_data_length = getRawDataLength(full_data, raw_data_position);
+  const message_sizes = getMessageSizes(full_data, raw_data_position);
   return {
-    ref: ref,
-    rawDataPosition: rawDataPosition,
-    rawDataLength: rawDataLength,
-    metadataPosition: metadataPosition,
-    metadataLength: metadataLength,
-    messageSizes: messageSizes,
+    full_data: full_data,
+    rawDataPosition: raw_data_position,
+    rawDataLength: raw_data_length,
+    messageSizes: message_sizes,
   };
 }
 
-export function closeSlpFile(file: SlpFileType): void {
-  switch (file.ref.source) {
-    case SlpInputSource.FILE:
-      fs.closeSync((file.ref as SlpFileSourceRef).fileDescriptor);
-      break;
-  }
-}
-
 // This function gets the position where the raw data starts
-function getRawDataPosition(ref: SlpRefType): number {
-  const buffer = new Uint8Array(1);
-  readRef(ref, buffer, 0, buffer.length, 0);
-
-  if (buffer[0] === 0x36) {
-    return 0;
-  }
-
+function getRawDataPosition(buffer: Uint8Array): number {
   if (buffer[0] !== "{".charCodeAt(0)) {
     return 0; // return error?
   }
-
   return 15;
 }
 
-function getRawDataLength(ref: SlpRefType, position: number): number {
-  const fileSize = getLenRef(ref);
+function getRawDataLength(buffer: Uint8Array, position: number): number {
+  const file_size = buffer.length;
   if (position === 0) {
-    return fileSize;
+    return file_size;
   }
-
-  const buffer = new Uint8Array(4);
-  readRef(ref, buffer, 0, buffer.length, position - 4);
-
-  const rawDataLen = (buffer[0]! << 24) | (buffer[1]! << 16) | (buffer[2]! << 8) | buffer[3]!;
-  if (rawDataLen > 0) {
+  const length_info = buffer.slice(position - 4, position);
+  const raw_data_len = (length_info[0]! << 24) | (length_info[1]! << 16) | (length_info[2]! << 8) | length_info[3]!;
+  if (raw_data_len > 0) {
     // If this method manages to read a number, it's probably trustworthy
-    return rawDataLen;
+    return raw_data_len;
   }
-
   // If the above does not return a valid data length,
   // return a file size based on file length. This enables
   // some support for severed files
-  return fileSize - position;
-}
-
-function getMetadataLength(ref: SlpRefType, position: number): number {
-  const len = getLenRef(ref);
-  return len - position - 1;
+  return file_size - position;
 }
 
 function getMessageSizes(
-  ref: SlpRefType,
+  buffer: Uint8Array,
   position: number,
 ): {
   [command: number]: number;
@@ -175,22 +98,19 @@ function getMessageSizes(
     return messageSizes;
   }
 
-  const buffer = new Uint8Array(2);
-  readRef(ref, buffer, 0, buffer.length, position);
-  if (buffer[0] !== Command.MESSAGE_SIZES) {
+  const message_metadata = buffer.slice(position, position + 2);
+  if (message_metadata[0] !== Command.MESSAGE_SIZES) {
     return {};
   }
-
-  const payloadLength = buffer[1] as number;
+  const payloadLength = message_metadata[1] as number;
   (messageSizes[0x35] as any) = payloadLength;
 
-  const messageSizesBuffer = new Uint8Array(payloadLength - 1);
-  readRef(ref, messageSizesBuffer, 0, messageSizesBuffer.length, position + 2);
+  const message_sizes_buffer = buffer.slice(position + 2, position + payloadLength + 1);
   for (let i = 0; i < payloadLength - 1; i += 3) {
-    const command = messageSizesBuffer[i] as number;
+    const command = message_sizes_buffer[i] as number;
 
     // Get size of command
-    (messageSizes[command] as any) = (messageSizesBuffer[i + 1]! << 8) | messageSizesBuffer[i + 2]!;
+    (messageSizes[command] as any) = (message_sizes_buffer[i + 1]! << 8) | message_sizes_buffer[i + 2]!;
   }
 
   return messageSizes;
@@ -201,46 +121,50 @@ function getMessageSizes(
  */
 export function iterateEvents(
   slpFile: SlpFileType,
-  callback: EventCallbackFunc,
+  getShouldStop: EventCallbackFunc,
   startPos: number | null = null,
 ): number {
-  const ref = slpFile.ref;
+  const full_data = slpFile.full_data;
 
   let readPosition = startPos !== null && startPos > 0 ? startPos : slpFile.rawDataPosition;
   const stopReadingAt = slpFile.rawDataPosition + slpFile.rawDataLength;
 
-  // Generate read buffers for each
-  const commandPayloadBuffers = mapValues(slpFile.messageSizes, (size) => new Uint8Array(size + 1));
-
-  const commandByteBuffer = new Uint8Array(1);
   while (readPosition < stopReadingAt) {
-    readRef(ref, commandByteBuffer, 0, 1, readPosition);
-    const commandByte = commandByteBuffer[0] as number;
-    const buffer = commandPayloadBuffers[commandByte];
-    if (buffer === undefined) {
+    const commandByte = full_data[readPosition] as number;
+    const message_size = (slpFile.messageSizes[commandByte] as number) + 1;
+    if (message_size === undefined) {
       // If we don't have an entry for this command, return false to indicate failed read
       return readPosition;
     }
-
-    if (buffer.length > stopReadingAt - readPosition) {
+    if (message_size > stopReadingAt - readPosition) {
       return readPosition;
     }
 
-    readRef(ref, buffer, 0, buffer.length, readPosition);
-    const parsedPayload = parseMessage(commandByte, buffer);
-    const shouldStop = callback(commandByte, parsedPayload);
+    const data = full_data.slice(readPosition, readPosition + message_size);
+    const parsed_payload = parseMessage(commandByte, data);
+    const shouldStop = getShouldStop(commandByte, parsed_payload);
     if (shouldStop) {
       break;
     }
 
-    readPosition += buffer.length;
+    readPosition += message_size;
   }
 
   return readPosition;
 }
 
+const decodeBuf = (buf: Uint8Array): string | undefined =>
+  convert(buf, {
+    to: "UNICODE",
+    from: "SJIS",
+    type: "string",
+  })
+    .split("\0")
+    .shift();
+
 export function parseMessage(command: Command, payload: Uint8Array): EventPayloadTypes | null {
-  const view = new DataView(payload.buffer);
+  const sliced_buffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+  const view = new DataView(sliced_buffer);
   switch (command) {
     case Command.GAME_START:
       const getPlayerObject = (playerIndex: number): PlayerType => {
@@ -262,10 +186,7 @@ export function parseMessage(command: Command, payload: Uint8Array): EventPayloa
         const nametagOffset = playerIndex * nametagLength;
         const nametagStart = 0x161 + nametagOffset;
         const nametagBuf = payload.slice(nametagStart, nametagStart + nametagLength);
-        const nameTagString = iconv
-          .decode(nametagBuf as Buffer, "Shift_JIS")
-          .split("\0")
-          .shift();
+        const nameTagString = decodeBuf(nametagBuf);
         const nametag = nameTagString ? toHalfwidth(nameTagString) : "";
 
         // Display name
@@ -273,10 +194,7 @@ export function parseMessage(command: Command, payload: Uint8Array): EventPayloa
         const displayNameOffset = playerIndex * displayNameLength;
         const displayNameStart = 0x1a5 + displayNameOffset;
         const displayNameBuf = payload.slice(displayNameStart, displayNameStart + displayNameLength);
-        const displayNameString = iconv
-          .decode(displayNameBuf as Buffer, "Shift_JIS")
-          .split("\0")
-          .shift();
+        const displayNameString = decodeBuf(displayNameBuf);
         const displayName = displayNameString ? toHalfwidth(displayNameString) : "";
 
         // Connect code
@@ -284,14 +202,11 @@ export function parseMessage(command: Command, payload: Uint8Array): EventPayloa
         const connectCodeOffset = playerIndex * connectCodeLength;
         const connectCodeStart = 0x221 + connectCodeOffset;
         const connectCodeBuf = payload.slice(connectCodeStart, connectCodeStart + connectCodeLength);
-        const connectCodeString = iconv
-          .decode(connectCodeBuf as Buffer, "Shift_JIS")
-          .split("\0")
-          .shift();
+        const connectCodeString = decodeBuf(connectCodeBuf);
         const connectCode = connectCodeString ? toHalfwidth(connectCodeString) : "";
 
         const offset = playerIndex * 0x24;
-        return {
+        const result = {
           playerIndex: playerIndex,
           port: playerIndex + 1,
           characterId: readUint8(view, 0x65 + offset),
@@ -304,6 +219,7 @@ export function parseMessage(command: Command, payload: Uint8Array): EventPayloa
           displayName: displayName,
           connectCode: connectCode,
         };
+        return result;
       };
       return {
         slpVersion: `${readUint8(view, 0x1)}.${readUint8(view, 0x2)}.${readUint8(view, 0x3)}`,
@@ -460,27 +376,4 @@ function readBool(view: DataView, offset: number): boolean | null {
   }
 
   return !!view.getUint8(offset);
-}
-
-export function getMetadata(slpFile: SlpFileType): MetadataType | null {
-  if (slpFile.metadataLength <= 0) {
-    // This will happen on a severed incomplete file
-    // $FlowFixMe
-    return null;
-  }
-
-  const buffer = new Uint8Array(slpFile.metadataLength);
-
-  readRef(slpFile.ref, buffer, 0, buffer.length, slpFile.metadataPosition);
-
-  let metadata = null;
-  try {
-    metadata = decode(buffer);
-  } catch (ex) {
-    // Do nothing
-    // console.log(ex);
-  }
-
-  // $FlowFixMe
-  return metadata;
 }

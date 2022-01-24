@@ -8,11 +8,10 @@ import {
   Stats,
   StockComputer,
 } from "./stats";
-// Type imports
 import type { FrameEntryType, FramesType, GameEndType, GameStartType, MetadataType, RollbackFrames } from "./types";
 import { SlpParser, SlpParserEvent } from "./utils/slpParser";
-import type { SlpReadInput } from "./utils/slpReader";
-import { closeSlpFile, getMetadata, iterateEvents, openSlpFile, SlpInputSource } from "./utils/slpReader";
+import { getInput, getMetadata, iterateEvents, openSlpFile, SlpInputSource } from "./reading";
+import type { SlpReadInput } from "./reading/slpReader";
 
 /**
  * Slippi Game class that wraps a file
@@ -30,25 +29,8 @@ export class SlippiGame {
   private inputComputer: InputComputer = new InputComputer();
   protected statsComputer: Stats;
 
-  public constructor(input: string | Buffer | ArrayBuffer, opts?: StatOptions) {
-    if (typeof input === "string") {
-      this.input = {
-        source: SlpInputSource.FILE,
-        filePath: input,
-      };
-    } else if (input instanceof Buffer) {
-      this.input = {
-        source: SlpInputSource.BUFFER,
-        buffer: input,
-      };
-    } else if (input instanceof ArrayBuffer) {
-      this.input = {
-        source: SlpInputSource.BUFFER,
-        buffer: Buffer.from(input),
-      };
-    } else {
-      throw new Error("Cannot create SlippiGame with input of that type");
-    }
+  public constructor(input: string | ArrayBuffer | Uint8Array, opts?: StatOptions) {
+    this.input = getInput(input);
 
     // Set up stats calculation
     this.statsComputer = new Stats(opts);
@@ -74,7 +56,6 @@ export class SlippiGame {
       return;
     }
     const slpfile = openSlpFile(this.input);
-    // Generate settings from iterating through file
     this.readPosition = iterateEvents(
       slpfile,
       (command, payload) => {
@@ -88,7 +69,6 @@ export class SlippiGame {
       },
       this.readPosition,
     );
-    closeSlpFile(slpfile);
   }
 
   /**
@@ -144,11 +124,11 @@ export class SlippiGame {
     const stats = {
       lastFrame: this.parser.getLatestFrameNumber(),
       playableFrameCount,
-      stocks: stocks,
-      conversions: conversions,
+      stocks,
+      conversions,
       combos: this.comboComputer.fetch(),
       actionCounts: this.actionsComputer.fetch(),
-      overall: overall,
+      overall,
       gameComplete: this.parser.getGameEnd() !== null,
     };
 
@@ -167,9 +147,7 @@ export class SlippiGame {
     if (this.metadata) {
       return this.metadata;
     }
-    const slpfile = openSlpFile(this.input);
-    this.metadata = getMetadata(slpfile);
-    closeSlpFile(slpfile);
+    this.metadata = getMetadata(this.input);
     return this.metadata;
   }
 

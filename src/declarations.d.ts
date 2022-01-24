@@ -5,8 +5,8 @@ declare module "enet" {
 
   export const PACKET_FLAG: any;
   export class Packet {
-    public constructor(data: string | Buffer, flag: any);
-    public data(): Buffer;
+    public constructor(data: string | Uint8Array, flag: any);
+    public data(): Uint8Array;
   }
   export interface Peer extends EventEmitter {
     ping(): void;
@@ -24,6 +24,13 @@ declare module "enet" {
     destroy(): void;
   }
   export function createClient(args: ClientArguments, callback: (err: Error, client: Host) => void): Host;
+}
+
+declare module "encoding-japanese" {
+  function convert(buf: Uint8Array, opts: any): string;
+  export default interface encoding {
+    convert: Function;
+  }
 }
 
 /* eslint-enable @typescript-eslint/no-explicit-any */

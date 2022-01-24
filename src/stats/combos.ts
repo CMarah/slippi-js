@@ -1,6 +1,3 @@
-import { EventEmitter } from "events";
-import { last } from "lodash";
-
 import type { FrameEntryType, FramesType, GameStartType, PostFrameUpdateType } from "../types";
 import type { ComboType, MoveLandedType, PlayerIndexedType } from "./common";
 import {
@@ -31,15 +28,13 @@ interface ComboState {
   event: ComboEvent | null;
 }
 
-export class ComboComputer extends EventEmitter implements StatComputer<ComboType[]> {
+export class ComboComputer implements StatComputer<ComboType[]> {
   private playerPermutations = new Array<PlayerIndexedType>();
   private state = new Map<PlayerIndexedType, ComboState>();
   private combos = new Array<ComboType>();
-  private settings: GameStartType | null = null;
 
   public setup(settings: GameStartType): void {
     // Reset the state
-    this.settings = settings;
     this.state = new Map();
     this.combos = [];
     this.playerPermutations = getSinglesPlayerPermutationsFromSettings(settings);
@@ -61,15 +56,6 @@ export class ComboComputer extends EventEmitter implements StatComputer<ComboTyp
       const state = this.state.get(indices);
       if (state) {
         handleComboCompute(allFrames, state, indices, frame, this.combos);
-
-        // Emit an event for the new combo
-        if (state.event !== null) {
-          this.emit(state.event, {
-            combo: last(this.combos),
-            settings: this.settings,
-          });
-          state.event = null;
-        }
       }
     });
   }
