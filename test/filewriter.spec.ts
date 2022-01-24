@@ -2,7 +2,7 @@ import fs from "fs";
 import { Writable } from "stream";
 
 import { SlippiGame, SlpFileWriter } from "../src";
-import { openSlpFile, SlpInputSource } from "../src/utils/slpReader";
+import { openSlpFile, SlpInputSource } from "../src/reading/slpReader";
 
 // On my machine, >100 is required to give the slpFile.ts "finish" callback time to execute.
 // I thought a 'yield' 0 ms setTimout would allow the callback to execute, but that's not the case.

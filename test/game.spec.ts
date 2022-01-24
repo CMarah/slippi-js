@@ -50,7 +50,7 @@ it("should correctly return file path", () => {
   const game = new SlippiGame("slp/test.slp");
   expect(game.getFilePath()).toBe("slp/test.slp");
 
-  const empty_game = new SlippiGame(new Buffer(""));
+  const empty_game = new SlippiGame(new Uint8Array());
   expect(empty_game.getFilePath()).toBe(null);
 });
 
@@ -112,7 +112,7 @@ it("should correctly distinguish between different controller fixes", () => {
 
 it("should be able to support reading from a buffer input", () => {
   const buf = fs.readFileSync("slp/sheik_vs_ics_yoshis.slp");
-  const game = new SlippiGame(buf);
+  const game = new SlippiGame(new Uint8Array(buf));
   const settings = game.getSettings();
   expect(settings.stageId).toBe(8);
   expect(_.first(settings.players).characterId).toBe(0x13);
@@ -130,8 +130,8 @@ it("should be able to support reading from an array buffer input", () => {
 });
 
 it("should support realtime parsing", () => {
-  const fullData = fs.readFileSync("slp/realtimeTest.slp");
-  const buf = Buffer.alloc(100e6); // Allocate 100 MB of space
+  const fullData = new Uint8Array(fs.readFileSync("slp/realtimeTest.slp"));
+  let buf = new Uint8Array(100e6); // Allocate 100 MB of space
   const game = new SlippiGame(buf);
 
   let data,
@@ -147,8 +147,8 @@ it("should support realtime parsing", () => {
   });
 
   const copyBuf = (len: number): void => {
-    const res = fullData.copy(buf, copyPos, copyPos, copyPos + len);
-    copyPos += res;
+    fullData.slice(copyPos, copyPos + len).forEach((value, index) => (buf[copyPos + index] = value));
+    copyPos += len;
   };
 
   // Test results with empty buffer
