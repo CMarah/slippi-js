@@ -1,3 +1,4 @@
+import { EventEmitter } from "events";
 import { filter, get, groupBy, last, orderBy } from "lodash";
 
 import type { FrameEntryType, FramesType, GameStartType, PostFrameUpdateType } from "../types";
@@ -27,13 +28,15 @@ interface MetadataType {
   };
 }
 
-export class ConversionComputer implements StatComputer<ConversionType[]> {
+export class ConversionComputer extends EventEmitter implements StatComputer<ConversionType[]> {
   private playerPermutations = new Array<PlayerIndexedType>();
   private conversions = new Array<ConversionType>();
   private state = new Map<PlayerIndexedType, PlayerConversionState>();
   private metadata: MetadataType;
+  private settings: GameStartType | null = null;
 
   public constructor() {
+    super();
     this.metadata = {
       lastEndFrameByOppIdx: {},
     };
@@ -47,6 +50,7 @@ export class ConversionComputer implements StatComputer<ConversionType[]> {
     this.metadata = {
       lastEndFrameByOppIdx: {},
     };
+    this.settings = settings;
 
     this.playerPermutations.forEach((indices) => {
       const playerState: PlayerConversionState = {
@@ -63,7 +67,13 @@ export class ConversionComputer implements StatComputer<ConversionType[]> {
     this.playerPermutations.forEach((indices) => {
       const state = this.state.get(indices);
       if (state) {
-        handleConversionCompute(allFrames, state, indices, frame, this.conversions);
+        const terminated = handleConversionCompute(allFrames, state, indices, frame, this.conversions);
+        if (terminated) {
+          this.emit("CONVERSION", {
+            combo: last(this.conversions),
+            settings: this.settings,
+          });
+        }
       }
     });
   }
