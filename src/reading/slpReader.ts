@@ -1,5 +1,4 @@
 import { convert } from "encoding-japanese";
-import _ from "lodash";
 
 import type { EventCallbackFunc, EventPayloadTypes, PlayerType, SelfInducedSpeedsType } from "../types";
 import { Command } from "../types";

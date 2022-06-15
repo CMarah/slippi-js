@@ -1,7 +1,7 @@
+import { SlpInputSource } from "../reading/slpReader";
 export * from "./metadata";
 export * from "./slpReader";
 
-import { SlpInputSource } from "../reading/slpReader";
 export const getInput = (input: string | ArrayBuffer | Uint8Array) => {
   if (typeof input === "string")
     return {
