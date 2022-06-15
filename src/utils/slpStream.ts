@@ -1,7 +1,7 @@
 import type { WritableOptions } from "stream";
 import { Writable } from "stream";
 
-import { NETWORK_MESSAGE } from "../console";
+const NETWORK_MESSAGE = "HELO\0";
 import type { EventPayloadTypes } from "../types";
 import { Command } from "../types";
 import { parseMessage } from "../reading/slpReader";

@@ -1,7 +1,7 @@
 import { decode } from "@shelacek/ubjson";
-import { getRef, readRef, getLenRef } from "./nodeReading";
+import { getRef, readRef, getLenRef } from "./browserReading";
 import type { MetadataType } from "../types";
-import type { SlpRefType, SlpReadInput } from "./nodeReading";
+import type { SlpRefType, SlpReadInput } from "./browserReading";
 
 // This function gets the position where the raw data starts
 function getRawDataPosition(ref: SlpRefType): number {

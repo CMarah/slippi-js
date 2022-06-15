@@ -1,9 +1,6 @@
-import type { WriteStream } from "fs";
-import fs from "fs";
 import { forEach } from "lodash";
 import type { Moment } from "moment";
 import moment from "moment";
-import type { WritableOptions } from "stream";
 import { Writable } from "stream";
 
 import type { GameStartType, PostFrameUpdateType } from "../types";
@@ -40,18 +37,16 @@ export interface SlpFileMetadata {
 export class SlpFile extends Writable {
   private filePath: string;
   private metadata: SlpFileMetadata;
-  private fileStream: WriteStream | null = null;
-  private rawDataLength = 0;
   private slpStream: SlpStream;
   private usesExternalStream = false;
 
   /**
    * Creates an instance of SlpFile.
    * @param {string} filePath The file location to write to.
-   * @param {WritableOptions} [opts] Options for writing.
+   * @param {any} [opts] Options for writing.
    * @memberof SlpFile
    */
-  public constructor(filePath: string, slpStream?: SlpStream, opts?: WritableOptions) {
+  public constructor(filePath: string, slpStream?: SlpStream, opts?: any) {
     super(opts);
     this.filePath = filePath;
     this.metadata = {
@@ -67,7 +62,6 @@ export class SlpFile extends Writable {
     this.slpStream = slpStream ? slpStream : new SlpStream({ mode: SlpStreamMode.MANUAL });
 
     this._setupListeners();
-    this._initializeNewGame(this.filePath);
   }
 
   /**
@@ -92,18 +86,12 @@ export class SlpFile extends Writable {
     if (encoding !== "buffer") {
       throw new Error(`Unsupported stream encoding. Expected 'buffer' got '${encoding}'.`);
     }
-    // Write it to the file
-    if (this.fileStream) {
-      this.fileStream.write(chunk);
-    }
-
     // Parse the data manually if it's an internal stream
     if (!this.usesExternalStream) {
       this.slpStream.write(chunk);
     }
 
     // Keep track of the bytes we've written
-    this.rawDataLength += chunk.length;
     callback();
   }
 
@@ -168,10 +156,6 @@ export class SlpFile extends Writable {
 
     this.on("finish", () => {
       // Update file with bytes written
-      const fd = fs.openSync(this.filePath, "r+");
-      fs.writeSync(fd, createUInt32Buffer(this.rawDataLength), 0, 4, 11);
-      fs.closeSync(fd);
-
       // Unsubscribe from the stream
       this.slpStream.removeListener(SlpStreamEvent.COMMAND, streamListener);
       // Terminate the internal stream
@@ -181,21 +165,7 @@ export class SlpFile extends Writable {
     });
   }
 
-  private _initializeNewGame(filePath: string): void {
-    this.fileStream = fs.createWriteStream(filePath, {
-      encoding: "binary",
-    });
-
-    const header = Buffer.concat([
-      Buffer.from("{U"),
-      Buffer.from([3]),
-      Buffer.from("raw[$U#l"),
-      Buffer.from([0, 0, 0, 0]),
-    ]);
-    this.fileStream.write(header);
-  }
-
-  public _final(callback: (error?: Error | null) => void): void {
+  public _final(): void {
     let footer = Buffer.concat([Buffer.from("U"), Buffer.from([8]), Buffer.from("metadata{")]);
 
     // Write game start time
@@ -298,11 +268,6 @@ export class SlpFile extends Writable {
 
     // Close metadata and file
     footer = Buffer.concat([footer, Buffer.from("}}")]);
-
-    // End the stream
-    if (this.fileStream) {
-      this.fileStream.write(footer, callback);
-    }
   }
 }
 

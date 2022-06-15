@@ -7,14 +7,9 @@ export * from "./types";
 
 // Utils
 export * from "./utils/slpFile";
-export * from "./utils/slpFileWriter";
-export * from "./utils/slpStream";
 
 // Parsing
 export * from "./utils/slpParser";
-
-// Console networking
-export * from "./console";
 
 // Export the main SlippiGame logic
 export * from "./SlippiGame";

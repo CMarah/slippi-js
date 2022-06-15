@@ -4,7 +4,7 @@ import _ from "lodash";
 import type { EventCallbackFunc, EventPayloadTypes, PlayerType, SelfInducedSpeedsType } from "../types";
 import { Command } from "../types";
 import { toHalfwidth } from "./fullwidth";
-import { readFullData } from "./nodeReading";
+import { readFullData } from "./browserReading";
 
 export enum SlpInputSource {
   BUFFER = "buffer",
