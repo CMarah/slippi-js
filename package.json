@@ -19,12 +19,15 @@
   "source": "./src/index.ts",
   "main": "./dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "prebuild": "yarn run clean",
     "start": "dts watch --target node",
     "build:check": "tsc --noEmit",
-    "build": "tsc --noEmit && dts build --target node --format esm",
+    "build": "tsc --noEmit && dts build --target node",
     "postcoverage": "open-cli coverage/lcov-report/index.html",
     "lint": "dts lint src",
     "lint:fix": "dts lint src --fix",
