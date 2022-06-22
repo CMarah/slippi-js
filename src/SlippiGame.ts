@@ -130,6 +130,7 @@ export class SlippiGame {
       actionCounts: this.actionsComputer.fetch(),
       overall,
       gameComplete: this.parser.getGameEnd() !== null,
+      settings,
     };
 
     if (this.parser.getGameEnd() !== null) {
