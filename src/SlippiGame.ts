@@ -131,6 +131,7 @@ export class SlippiGame {
       overall,
       gameComplete: this.parser.getGameEnd() !== null,
       settings,
+      inputs,
     };
 
     if (this.parser.getGameEnd() !== null) {

@@ -24,6 +24,8 @@ export interface PlayerInput {
   cstickInputCount: number;
   buttonInputCount: number;
   triggerInputCount: number;
+  pressing_start?: boolean;
+  airborne?: boolean;
 }
 
 export class InputComputer implements StatComputer<PlayerInput[]> {
@@ -83,6 +85,10 @@ function handleInputCompute(
   // Increment action count by amount of button presses
   const invertedPreviousButtons = ~prevPlayerFrame.physicalButtons!;
   const currentButtons = playerFrame.physicalButtons!;
+  const pressing_start = currentButtons & 0x1000;
+  state.pressing_start = pressing_start ? true : false;
+  const postplayerFrame = frame.players[indices.playerIndex]!.post;
+  state.airborne = postplayerFrame.isAirborne ? true : false;
   const buttonChanges = invertedPreviousButtons & currentButtons & 0xfff;
   const newInputsPressed = countSetBits(buttonChanges);
   state.inputCount += newInputsPressed;
