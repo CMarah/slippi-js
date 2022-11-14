@@ -98,3 +98,10 @@ You can also run `yarn run watch` to continuously build whenever changes are det
 ```bash
 yarn run test
 ```
+
+### How to use in MeleeWrapped
+
+1. Write corresponding changes
+2. Close MeleeWrapped server
+3. Build with `npm run build`
+4. Reopen MeleeWrapped server
