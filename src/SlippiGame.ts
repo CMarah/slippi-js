@@ -1,13 +1,5 @@
 import type { StatOptions, StatsType } from "./stats";
-import {
-  ActionsComputer,
-  ComboComputer,
-  ConversionComputer,
-  generateOverallStats,
-  InputComputer,
-  Stats,
-  StockComputer,
-} from "./stats";
+import { ActionsComputer, ComboComputer, ConversionComputer, InputComputer, Stats, StockComputer } from "./stats";
 import type { FrameEntryType, FramesType, GameEndType, GameStartType, MetadataType, RollbackFrames } from "./types";
 import { SlpParser, SlpParserEvent } from "./utils/slpParser";
 import { getInput, getMetadata, iterateEvents, openSlpFile, SlpInputSource } from "./reading";
@@ -117,19 +109,13 @@ export class SlippiGame {
     this.statsComputer.process();
     const inputs = this.inputComputer.fetch();
     const stocks = this.stockComputer.fetch();
-    const conversions = this.conversionComputer.fetch();
-    const playableFrameCount = this.parser.getPlayableFrameCount();
-    const overall = generateOverallStats({ settings, inputs, conversions, playableFrameCount });
 
     const stats = {
-      lastFrame: this.parser.getLatestFrameNumber(),
-      playableFrameCount,
-      stocks,
-      conversions,
-      combos: this.comboComputer.fetch(),
-      actionCounts: this.actionsComputer.fetch(),
-      overall,
       gameComplete: this.parser.getGameEnd() !== null,
+      lastFrame: this.parser.getLatestFrameNumber(),
+      stocks,
+      last_combo: this.comboComputer.fetch(),
+      actionCounts: this.actionsComputer.fetch(),
       settings,
       inputs,
     };

@@ -3,12 +3,8 @@ import type { GameStartType, PostFrameUpdateType } from "../types";
 export interface StatsType {
   gameComplete: boolean;
   lastFrame: number;
-  playableFrameCount: number;
   stocks: StockType[];
-  conversions: ConversionType[];
-  combos: ComboType[];
-  actionCounts: ActionCountsType[];
-  overall: OverallType[];
+  last_combo: ComboType;
 }
 
 export interface RatioType {

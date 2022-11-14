@@ -1,5 +1,4 @@
 import { EventEmitter } from "events";
-import { last } from "lodash";
 
 import type { FrameEntryType, FramesType, GameStartType, PostFrameUpdateType } from "../types";
 import type { ComboType, MoveLandedType, PlayerIndexedType } from "./common";
@@ -31,16 +30,25 @@ interface ComboState {
   event: ComboEvent | null;
 }
 
-export class ComboComputer extends EventEmitter implements StatComputer<ComboType[]> {
+export class ComboComputer extends EventEmitter implements StatComputer<ComboType> {
   private playerPermutations = new Array<PlayerIndexedType>();
   private state = new Map<PlayerIndexedType, ComboState>();
-  private combos = new Array<ComboType>();
+  private last_combo: ComboType = {
+    playerIndex: 0,
+    moves: [],
+    didKill: false,
+    lastHitBy: null,
+    startFrame: 0,
+    endFrame: null,
+    startPercent: 0,
+    currentPercent: 0,
+    endPercent: null,
+  };
   private settings: GameStartType | null = null;
 
   public setup(settings: GameStartType): void {
     // Reset the state
     this.state = new Map();
-    this.combos = [];
     this.playerPermutations = getSinglesPlayerPermutationsFromSettings(settings);
 
     this.playerPermutations.forEach((indices) => {
@@ -59,11 +67,14 @@ export class ComboComputer extends EventEmitter implements StatComputer<ComboTyp
     this.playerPermutations.forEach((indices) => {
       const state = this.state.get(indices);
       if (state) {
-        handleComboCompute(allFrames, state, indices, frame, this.combos);
+        handleComboCompute(allFrames, state, indices, frame);
         // Emit an event for the new combo
+        if (state.event === "COMBO_START" && state.combo) {
+          this.last_combo = state.combo;
+        }
         if (state.event !== null) {
           this.emit(state.event, {
-            combo: last(this.combos),
+            last_combo: this.last_combo,
             settings: this.settings,
           });
           state.event = null;
@@ -72,8 +83,8 @@ export class ComboComputer extends EventEmitter implements StatComputer<ComboTyp
     });
   }
 
-  public fetch(): ComboType[] {
-    return this.combos;
+  public fetch(): ComboType {
+    return this.last_combo;
   }
 }
 
@@ -82,7 +93,6 @@ function handleComboCompute(
   state: ComboState,
   indices: PlayerIndexedType,
   frame: FrameEntryType,
-  combos: ComboType[],
 ): void {
   const currentFrameNumber = frame.frame;
   const playerFrame = frame.players[indices.playerIndex]!.post;
@@ -133,8 +143,6 @@ function handleComboCompute(
         didKill: false,
         lastHitBy: indices.playerIndex,
       };
-
-      combos.push(state.combo);
 
       // Track whether this is a new combo or not
       comboStarted = true;
