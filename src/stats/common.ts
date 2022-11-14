@@ -5,6 +5,7 @@ export interface StatsType {
   lastFrame: number;
   stocks: StockType[];
   last_combo: ComboType;
+  overall: OverallType[];
 }
 
 export interface RatioType {
@@ -100,18 +101,12 @@ export interface InputCountsType {
 
 export interface OverallType {
   playerIndex: number;
-  inputCounts: InputCountsType;
-  conversionCount: number;
   totalDamage: number;
   killCount: number;
-  successfulConversions: RatioType;
   inputsPerMinute: RatioType;
-  digitalInputsPerMinute: RatioType;
   openingsPerKill: RatioType;
   damagePerOpening: RatioType;
   neutralWinRatio: RatioType;
-  counterHitRatio: RatioType;
-  beneficialTradeRatio: RatioType;
 }
 
 export enum State {
